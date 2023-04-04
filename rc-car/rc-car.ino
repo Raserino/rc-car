@@ -117,7 +117,7 @@ void loop()
     case 2: // ready (standstill, waiting for launch)
       forward_pwm  = 0;
       reverse_pwm = 0;
-      // transition condition to start launc
+      // transition condition to start launch
       if(duration[1] > duration_max*0.95)
       {
         launch_state = 3;
