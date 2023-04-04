@@ -27,6 +27,8 @@ const int duration_min = 1041; //microseconds
 # define FORWARD 5 // pwm pin
 # define REVERSE 6 // pwm pin
 
+int launch_state = 0; // 0: idle, 1: activated, 2: ready (car in standstill), 3: during launch
+
 RF24 radio(9, 8); // CE and CSN pins
 const byte address[6] = "00001"; // Address for communication
 
@@ -63,25 +65,7 @@ void setup()
 }
 
 void loop() 
-{
-  // read inputs from RC control
-  for(int i=0; i<3; i++)
-  {
-    duration[i] = pulseIn(RC[i], HIGH, 20000);
-    delay(10);
-  }
-  Serial.println(millis());
-
-  // set steering
-  int steer_pwm = transfer_steer(duration[0]);
-  analogWrite(STEER, steer_pwm);
-
-  // set acceleration
-  int forward_pwm = transfer_accel(duration[1],0);
-  analogWrite(FORWARD, forward_pwm);
-  int reverse_pwm = transfer_accel(duration[1],1);
-  analogWrite(REVERSE, reverse_pwm);
-
+{  
   // calculate speeds
   for(int i=0; i<4; i++)
   {
@@ -90,9 +74,69 @@ void loop()
   int rpm_motor = 5*0.5*(abs(rpm[2] - rpm[3]));
   float v_long = (3.1416 * 0.0686 * 0.5 * (rpm[0] + rpm[1]))/60; // pi*d*0.5(rpm_fl + rpm_fr)
 
-  // send speeds
+  // send speeds over RF24 radio to PC logger
   char msg[24];
   sprintf(msg, "%d, %d, %d, %d", rpm[0], rpm[1], rpm[2], rpm[3]);
   radio.write(msg,sizeof(msg));
+  // read inputs from RC control
+  for(int i=0; i<3; i++)
+  {
+    duration[i] = pulseIn(RC[i], HIGH, 20000);
+    delay(10);
+  }
+
+  // set output steering
+  int steer_pwm = transfer_steer(duration[0]);
+  analogWrite(STEER, steer_pwm);
+
+  // acceleration / launch control state machine
+  int forward_pwm = 0;
+  int reverse_pwm = 0;
+  switch(launch_state) // idle
+  {
+    case 0: // idle
+      forward_pwm = transfer_accel(duration[1], 1);
+      reverse_pwm = transfer_accel(duration[1], 0);
+      //transition condition (button press activates launch control)
+      if(duration[2] > duration_max*0.95)
+      {
+        launch_state = 1;
+      }
+      break;
+  
+    case 1: // activated (waiting for standstill)
+      forward_pwm = transfer_accel(duration[1], 1);
+      reverse_pwm = transfer_accel(duration[1], 0);
+      //transition condition (waiting for standstill)
+      if(abs(v_long) < 0.01)
+      {
+         launch_state = 2;
+      }
+      break;
+
+    case 2: // ready (standstill, waiting for launch)
+      forward_pwm  = 0;
+      reverse_pwm = 0;
+      // transition condition to start launc
+      if(duration[1] > duration_max*0.95)
+      {
+        launch_state = 3;
+      }
+      break;
+
+    case 3: // during launch
+      forward_pwm = launch(rpm);
+      reverse_pwm = 0;
+      // transition condition to end launch control
+      if (duration[1] < duration_max*0.95)
+      {
+        launch_state = 0;
+      }
+      break;
+  }
+
+  // set output accel 
+  analogWrite(FORWARD, forward_pwm);
+  analogWrite(REVERSE, reverse_pwm);
 }
 
