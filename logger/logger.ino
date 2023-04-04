@@ -23,8 +23,8 @@ void loop()
 {
   if (radio.available()) 
   {
-    char text[32] = "";
-    radio.read(&text, sizeof(text));
-    Serial.println(text);
+    char msg[32] = "";
+    radio.read(&msg, sizeof(msg));
+    Serial.println(msg);
   }
 }
