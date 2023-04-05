@@ -21,6 +21,12 @@ int launch(int* rpm)
     int rpm_desired = rpm_front * (1+s);
     int error = rpm_desired - rpm_rear;
     int control = K*error;
+    
+    // the launch control can't brake
+    if(control < 0)
+    {
+      control = 0;
+    }
     return control;
   }
 }

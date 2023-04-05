@@ -1,6 +1,6 @@
 int transfer_accel(int duration, int direction)
 {
-  const int tol = 5; 
+  const int tol = 20; 
 
   int forward_pwm = 0;
   int reverse_pwm = 0;

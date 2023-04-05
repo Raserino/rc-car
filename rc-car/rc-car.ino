@@ -14,12 +14,14 @@ long T_rpm[] = {2147483647, 2147483647, 2147483647, 2147483647}; // init with in
 long starttime[] = {0,0,0,0};
 bool sema[] = {1,1,1,1};
 int rpm[] = {0,0,0,0};
+const float a1 = 0.5; // factor for exponential smoothing
 
 // rc control inputs; array structure_: {steer, accel, CH3}
 const int RC[] = {14,15,16};
-int duration[] = {0,0,0};
-const int duration_max = 2041; //microseconds
-const int duration_min = 1041; //microseconds
+int duration[] = {1500,1500,1500};
+const float a2 = 1; // factor for exponential smoothing
+const int duration_max = 2000*1.05; //microseconds
+const int duration_min = 1000*0.95; //microseconds
 
 // pins for output control
 # define STEER 3 // pwm pin
@@ -69,7 +71,7 @@ void loop()
   // calculate speeds
   for(int i=0; i<4; i++)
   {
-    rpm[i] = (60.0*(1000))/T_rpm[i];
+    rpm[i] = a1*(60.0*(1000))/T_rpm[i] + (1-a1)*rpm[i];
   }
   int rpm_motor = 5*0.5*(abs(rpm[2] - rpm[3]));
   float v_long = (3.1416 * 0.0686 * 0.5 * (rpm[0] + rpm[1]))/60; // pi*d*0.5(rpm_fl + rpm_fr)
@@ -81,12 +83,21 @@ void loop()
   // read inputs from RC control
   for(int i=0; i<3; i++)
   {
-    duration[i] = pulseIn(RC[i], HIGH, 20000);
-    delay(10);
+    delay(10); // delay is needed to get good measurements
+    int duration_measured = pulseIn(RC[i], HIGH, 20000);
+    // filter outliers
+    if(duration_measured > duration_min*0.9 && duration_measured < duration_max*1.1)
+    {
+      duration[i] = a2*duration_measured + (1-a2)*duration[i];
+    }     
+    Serial.print(duration[i]);
+    Serial.print(" ");
   }
 
   // set output steering
   int steer_pwm = transfer_steer(duration[0]);
+  Serial.print(steer_pwm);
+  Serial.print(" ");
   analogWrite(STEER, steer_pwm);
 
   // acceleration / launch control state machine
@@ -97,8 +108,13 @@ void loop()
     case 0: // idle
       forward_pwm = transfer_accel(duration[1], 1);
       reverse_pwm = transfer_accel(duration[1], 0);
+      Serial.print(forward_pwm);
+      Serial.print(" ");
+      Serial.print(reverse_pwm);
+      Serial.print(" ");
+
       //transition condition (button press activates launch control)
-      if(duration[2] > duration_max*0.95)
+      if(duration[2] > duration_max*0.9)
       {
         launch_state = 1;
       }
@@ -118,7 +134,7 @@ void loop()
       forward_pwm  = 0;
       reverse_pwm = 0;
       // transition condition to start launch
-      if(duration[1] > duration_max*0.95)
+      if(duration[1] > duration_max*0.9)
       {
         launch_state = 3;
       }
@@ -128,7 +144,7 @@ void loop()
       forward_pwm = launch(rpm);
       reverse_pwm = 0;
       // transition condition to end launch control
-      if (duration[1] < duration_max*0.95)
+      if (duration[1] < duration_max*0.9)
       {
         launch_state = 0;
       }
@@ -138,5 +154,7 @@ void loop()
   // set output accel 
   analogWrite(FORWARD, forward_pwm);
   analogWrite(REVERSE, reverse_pwm);
+
+  Serial.println();
 }
 
