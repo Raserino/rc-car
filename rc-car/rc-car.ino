@@ -20,8 +20,8 @@ const float a1 = 0.5; // factor for exponential smoothing
 const int RC[] = {14,15,16};
 int duration[] = {1500,1500,1500};
 const float a2 = 1; // factor for exponential smoothing
-const int duration_max = 2000*1.05; //microseconds
-const int duration_min = 1000*0.95; //microseconds
+const int duration_max = 2000; //microseconds
+const int duration_min = 1000; //microseconds
 
 // pins for output control
 # define STEER 3 // pwm pin
@@ -59,7 +59,7 @@ void setup()
   Serial.begin(115200);
   radio.begin(); // Start the radio
   radio.openWritingPipe(address); // Set the address
-  radio.setPALevel(RF24_PA_MIN); // Set the power level
+  radio.setPALevel(RF24_PA_MAX); // Set the power level
   radio.stopListening(); // Stop listening for incoming messages
 
   // activate interrupts for rpm measurment
@@ -151,10 +151,23 @@ void loop()
       break;
   }
 
-  // set output accel 
+  // set output accel
+  // limit PWM at low speeds to keep motor current below 43A (driver limit)
+  // constants
+  int I_max_driver = 43; // Ampere
+  int I_stall_motor = 63; // Ampere
+  int rpm_max = 18000;
+  float U_supply = 8.0; // Volt
+  float R_i = U_supply/I_stall_motor; 
+  float Ke = U_supply/rpm_max; // back EMF constant
+  // calculate pwm limitation
+  float U_ind = Ke * rpm_motor; 
+  float U_motor_I_max_driver = R_i * I_max_driver + U_ind;
+  int pwm_limit = 255 * U_motor_I_max_driver / U_supply;
+  // set constrained pwm
+  forward_pwm = constrain(forward_pwm, 0, pwm_limit);
+  reverse_pwm = constrain(forward_pwm, 0, pwm_limit);
   analogWrite(FORWARD, forward_pwm);
   analogWrite(REVERSE, reverse_pwm);
-
-  Serial.println();
 }
 

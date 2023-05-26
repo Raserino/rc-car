@@ -1,4 +1,4 @@
-%rpm
+c%rpm
 fig = uifigure;
 cg = uigauge(fig);
 cg.Limits = [0 20000];
