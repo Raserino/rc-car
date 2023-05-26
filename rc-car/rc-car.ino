@@ -166,8 +166,10 @@ void loop()
   int pwm_limit = 255 * U_motor_I_max_driver / U_supply;
   // set constrained pwm
   forward_pwm = constrain(forward_pwm, 0, pwm_limit);
-  reverse_pwm = constrain(forward_pwm, 0, pwm_limit);
+  reverse_pwm = constrain(reverse_pwm, 0, pwm_limit);
   analogWrite(FORWARD, forward_pwm);
   analogWrite(REVERSE, reverse_pwm);
+
+  Serial.println();
 }
 
